@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+  <head>
+    <style>
+      rect.bordered {
+        stroke: #E6E6E6;
+        stroke-width:2px;   
+      }
+
+      text.mono {
+        font-size: 9pt;
+        font-family: Consolas, courier;
+        fill: #aaa;
+      }
+
+      text.axis-workweek {
+        fill: #000;
+      }
+
+      text.axis-worktime {
+        fill: #000;
+      }
+
+     /* #inds{
+        position:absolute;
+       top:10px;
+      left:10px;
+      }*/
+    </style>
+    <script src="http://d3js.org/d3.v3.js"></script>
+    <script src="colorbrewer.min.js"></script>
+
+  </head>
+  <body>
+    <div id="chart"></div>
+
+    &nbsp;Clustering:&nbsp;
+      <select id="clustering" name="clustering">
+        <option value = "" >No clustering</option>
+        <option value = "Topic_features" selected>k-means</option>
+      </select>​
+      &nbsp;Number of Clusters:&nbsp;
+      <select id="cluster_num" name="cluster_num">
+        <option value = "3">3</option>
+        <option value = "4">4</option>
+        <option value = "5">5</option>
+        <option value = "6">6</option>
+        <option value = "7" selected>7</option>
+        <option value = "8">8</option>
+        <option value = "9">9</option>
+        <option value = "10">10</option>
+
+      </select>​
+      <br>
+      <br>
+    <div id="dataset-picker"> Interactive Topic Modeling: &nbsp;</div>
+      <br>
+      &nbsp;Dataset:&nbsp;
+      <select id="sources_dataset" name="sources_dataset">
+        <option value = "Armsdealing" selected>Arms Dealing</option>
+        <option value = "TerroristActivity">Terrorist Activity</option>
+        <option value = "Disappearance">Employees Disappearance</option>
+      </select>​
+      &nbsp;User:&nbsp;
+      <select id="user">
+        <option value ="P1" selected>P1</option>
+        <option value ="P2">P2</option>
+        <option value ="P3">P3</option>
+        <option value ="P4">P4</option>
+        <option value ="P5">P5</option>
+        <option value ="P6">P6</option>
+        <option value ="P7">P7</option>
+        <option value ="P8">P8</option>
+      </select>
+      &nbsp;Number of topics:&nbsp;
+      <select id="topic_num" name="topic_num">
+        <option value ="3">3</option>
+        <option value ="4">4</option>
+        <option value ="5">5</option>
+        <option value ="6" >6</option>
+        <option value ="7" selected="selected">7</option>
+        <option value ="8">8</option>
+        <option value ="9">9</option>
+        <option value ="10" >10</option>
+        <option value ="11" >11</option>
+        <option value ="12" >12</option>
+        <option value ="13" >13</option>
+        <option value ="14" >14</option>
+        <option value ="15" >15</option>
+        <option value ="16" >16</option>
+        <option value ="17" >17</option>
+        <option value ="18" >18</option>
+        <option value ="19" >19</option>
+        <option value ="20" >20</option>
+      </select>​
+
+
+    <script type="text/javascript">
+
+      var dataset_name = "Armsdealing"
+          var user_name = "P1"
+          var topic_number = "7"
+          var clustering_type = "Topic_features"
+          var clustering_number = "7"
+          width1 = 1024
+
+      var margin = { top: 100, right: 0, bottom: 100, left: 100 },
+          // width = 2460 - margin.left - margin.right,
+          gridSize = Math.floor(width1 / 24),
+          width = 1850 + (gridSize*parseInt(topic_number)) - margin.left - margin.right,
+          // height = 630 - margin.top - margin.bottom,
+          height = 250 + (gridSize*parseInt(topic_number)) - margin.top - margin.bottom,
+          legendElementWidth = gridSize*2,
+          buckets = 9;
+          colors = colorbrewer.YlGnBu[9];  //colorbrewer.YlGnBu[9];//["#ffffd9","#edf8b1","#c7e9b4","#7fcdbb","#41b6c4","#1d91c0","#225ea8","#253494","#081d58"], // alternatively colorbrewer.YlGnBu[9]
+
+          days = ["Cluster ", "Cluster ", "Cluster 3", "Th", "Fr", "Sa", "Su"],
+          times = ["Topic 1", "Topic 2", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a", "12a", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p", "12p"];
+          last_dataset = "0";
+          datasets = ["0","1","20","80"];
+          var mydata = [];
+          var out = [];
+          var stat = [];
+          var mysummary = [];
+          
+          for (var i=0;i<parseInt(topic_number);i++){
+            mydata.push([]);
+            stat.push(0);
+            for (var j=0;j<parseInt(topic_number);j++){
+              mydata[i].push(0)
+            }
+          }
+
+      var svg = d3.select("#chart").append("svg")
+          .attr("width", width + margin.left + margin.right)
+          .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      var heatmapChart = function(FileName) {
+        if (clustering_type == ""){
+        jsonfile = "./"+FileName+"/"+topic_number+"/"+dataset_name+"/"+user_name+"/docs_topic_features.json";
+        }else{
+        jsonfile = "./"+FileName+"/"+clustering_type+"/"+topic_number+"/"+dataset_name+"/"+user_name+"/docs_"+clustering_number+".json";
+        } 
+        console.log(jsonfile)
+        d3.json(jsonfile,
+        function(d) {     
+          if (clustering_type == ""){
+            for (var j=0; j<d.length; j++){
+              this_object = d[j]
+              vec = this_object.topic_weights
+              doc = this_object.doc_number
+              max_ = 0
+              for (var i=0; i<vec.length; i++){
+                this_feature = vec[i]
+                if (this_feature[1] > max_) {  // we find the analysis topic class
+                  max_ = this_feature[1]
+                  class_ = this_feature[0]
+                }
+              }
+              if (class_ == 8) console.log(doc)
+              for (var i=0; i<vec.length; i++){
+                this_feature = vec[i]
+                mydata[class_][this_feature[0]] += this_feature[1]
+              }
+              stat[class_] += 1;
+            }
+          }else{
+            
+            for (var j=0; j<d.length; j++){
+              this_object = d[j]
+              vec = this_object.topicWeights
+              class_ = this_object.classNum[0][0]
+              for (var i=0; i<vec.length; i++){
+
+                this_feature = vec[i]
+                // console.log(this_feature)
+                mydata[class_][i] += this_feature
+              }
+              stat[class_] += 1;
+            }
+          }
+
+        console.log(mydata)
+        for (j = 0; j < mydata.length;j++){
+          this_class = mydata[j];
+          for (i = 0; i<this_class.length; i++){
+              out.push({
+              day: 1+j,
+              hour: 1+i,
+              value: this_class[i]
+              });
+          }
+        }
+        
+
+        if (clustering_type == ""){
+        topic_sum_jsonfile = "./"+FileName+"/"+topic_number+"/"+dataset_name+"/"+user_name+"/topic_summariy.json";
+        }else{
+        topic_sum_jsonfile = "./"+FileName+"/"+clustering_type+"/"+topic_number+"/"+dataset_name+"/"+user_name+"/clusters_"+clustering_number+".json";
+        } 
+
+        console.log(topic_sum_jsonfile)
+        d3.json(topic_sum_jsonfile,
+        function(summarydata) {   
+          
+          summarydata.forEach(function(eachsummary){
+            mysummary.push(eachsummary.keywords)
+          });
+
+
+          draw(out);
+        });
+
+
+
+        
+        });
+
+      }
+        
+        function draw(data) {
+          var colorScale = d3.scale.quantile()
+              .domain([0, buckets - 1, d3.max(data, function (d) {return d.value; })])
+              .range(colors);
+
+          var cards = svg.selectAll(".hour")
+              .data(data, function(d) {return d.day+':'+d.hour;});
+
+          cards.append("title");
+
+          cards.enter().append("rect")
+              .attr("x", function(d) { return (d.hour - 1) * gridSize; })
+              .attr("y", function(d) { return (d.day - 1) * gridSize; })
+              .attr("rx", 4)
+              .attr("ry", 4)
+              .attr("class", "hour bordered")
+              .attr("width", gridSize)
+              .attr("height", gridSize)
+              .style("fill", colors[0]);
+              //.style("opacity", function(d) { return opcatiyScale(d.value); });
+
+          cards.transition().duration(1000)
+              .style("fill", function(d) { return colorScale(d.value); });
+
+          cards.select("title").text(function(d) { return d.value; });
+          
+          cards.exit().remove();
+        
+
+      var dayLabels = svg.selectAll(".dayLabel")
+          .data(mydata)
+          .enter().append("text")
+            .text(function (d,i) { return "Cluster "+i; })
+            .attr("x", 0)
+            .attr("y", function (d, i) { return i * gridSize; })
+            .style("text-anchor", "end")
+            .attr("transform", "translate(-6," + gridSize / 1.5 + ")")
+            .attr("class", function (d, i) { return "dayLabel mono axis axis-workweek"});//((i >= 0 && i <= 4) ? "dayLabel mono axis axis-workweek" : "dayLabel mono axis"); });
+
+      var timeLabels = svg.selectAll(".timeLabel")
+          .data(mydata[0])
+          .enter().append("text")
+            .text(function(d,i) { return "Topic "+i; })
+            .attr("x", 0)//function(d, i) { return i * gridSize; })
+            .attr("y", 0)
+            .style("text-anchor", "middle") 
+            .attr("transform", function(d,i){ return "rotate("+i+90+")"})
+            .attr("transform", function(d,i){ return "translate(" +  (i * gridSize + gridSize / 2) + ", -30)"+"rotate(90)"}) 
+            .attr("class", function(d, i) { return "timeLabel mono axis axis-worktime"}); //((i >= 7 && i <= 16) ? "timeLabel mono axis axis-worktime" : "timeLabel mono axis"); });
+      var dayLabels = svg.selectAll(".statLabel")
+          .data(mydata)
+          .enter().append("text")
+            .text(function (d,i) { return stat[i]+ " documents -- Summary: "+ mysummary[i]; })
+            .attr("x", parseInt(topic_number) * gridSize + margin.left + margin.right )
+            .attr("y", function (d, i) { return i * gridSize; })
+            .style("text-anchor", "start")
+            .attr("transform", "translate(-70," + gridSize / 1.5 + ")")
+            .attr("class", function (d, i) { return "dayLabel mono axis axis-workweek"});
+      };
+
+      function refresh(){
+                mydata = [];
+                out = []
+                stat = []
+                mysummary = [];
+                if (clustering_type == ""){
+                  for (var i=0;i<parseInt(topic_number);i++){
+                    mydata.push([]);
+                    stat.push(0);
+                    for (var j=0;j<parseInt(topic_number);j++){
+                      mydata[i].push(0)
+                    }
+                  }
+                }else{
+                  for (var i=0;i<parseInt(clustering_number);i++){
+                    mydata.push([]);
+                    stat.push(0);
+                    for (var j=0;j<parseInt(topic_number);j++){
+                      mydata[i].push(0)
+                    }
+                  }
+                }
+                svg.selectAll(".timeLabel").remove()
+                svg.selectAll(".dayLabel").remove()
+      } 
+
+      refresh();
+      heatmapChart(last_dataset);
+      
+      var datasetpicker = d3.select("#dataset-picker").selectAll(".dataset-button")
+       .data(datasets);
+
+
+
+      datasetpicker.enter()
+        .append("input")
+        .attr("value", function(d,i){return d})
+        .attr("type", "button")
+        .attr("class", "dataset-button")
+        .on("click", function(d) {
+          last_dataset = d;
+          refresh()
+          heatmapChart(d);
+        });
+
+        d3.select('#sources_dataset').on("change", function () {
+                var sect = document.getElementById("sources_dataset");
+                dataset_name = sect.options[sect.selectedIndex].value;
+                refresh()
+                heatmapChart(last_dataset);
+              });
+        d3.select('#user').on("change", function () {
+                var sect = document.getElementById("user");
+                user_name = sect.options[sect.selectedIndex].value;
+                refresh()
+                heatmapChart(last_dataset);
+              });
+        d3.select('#topic_num').on("change", function () {
+                var sect = document.getElementById("topic_num");
+                topic_number = sect.options[sect.selectedIndex].value;
+                height = 250 + (gridSize*parseInt(topic_number)) - margin.top - margin.bottom
+                width = 250 + (gridSize*parseInt(topic_number)) - margin.left - margin.right
+                refresh();
+                heatmapChart(last_dataset);
+              });
+        d3.select('#clustering').on("change", function () {
+                var sect = document.getElementById("clustering");
+                clustering_type = sect.options[sect.selectedIndex].value;
+                refresh();
+                heatmapChart(last_dataset);
+              });
+        d3.select('#cluster_num').on("change", function () {
+                var sect = document.getElementById("cluster_num");
+                clustering_number = sect.options[sect.selectedIndex].value;
+                refresh();
+                heatmapChart(last_dataset);
+              });
+
+    </script>
+  </body>
+</html>
